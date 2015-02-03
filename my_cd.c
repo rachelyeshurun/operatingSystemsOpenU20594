@@ -87,8 +87,11 @@ int main(int argc, char *argv[])
 	if (res == -1)
 	{
 		printf("[ERROR] write directory to 'myext2' failed\n");
+		close(fd);
 		exit(1);
 	}
+	
+	close(fd);
 	return 0;
 }
 

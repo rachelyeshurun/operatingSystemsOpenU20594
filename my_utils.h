@@ -7,18 +7,16 @@
 #define MY_UTILS_H_
 
 
+#include <linux/ext2_fs.h>
 
+#define CURRENT_PATH_FILE 		"/tmp/.myext2" 	/* File to store the current working directory, instead of PWD ENV*/
 
-/* Print contents of a directory to stdout */
-/*int printDir(struct ext2_dir_entry_2 *pDirEntry, int inodeTable,int inodeSize,int blockSize);*/
+/* Return 1 if a path exists, 0 if not. Path must begin with '/' example: /aa/bb/cc .
+ * Return inner directory if pInnerDirectory not NULL.
+*/
+int isValidPath(char path[], struct ext2_dir_entry_2 *pInnerDirectory);
 
-/* Return 1 if a path exists, 0 if not. Path must begin with '/' example: /aa/bb/cc .*/
-int isValidPath(char path[]);
+/* Print contents of a directory to stdout. Path must begin with '/' example: /aa/bb/cc .*/
+int printDirectory(char path[]);
 
-#if 0
-int updateCurrentDirectory(char *pDirName);
-int getCurrentDirectory(char **ppDirName);
-
-int get_disk_properties(int * block_size, struct ext2_super_block * sb, struct ext2_group_desc * gd);
-#endif
 #endif

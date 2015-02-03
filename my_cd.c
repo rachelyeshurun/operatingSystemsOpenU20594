@@ -14,7 +14,7 @@
  
 #include "my_utils.h"
 
-#define DEBUG_MODE 
+#define _DEBUG_MODE 
 /* Note - must compile with -Wno-unused-value if debug mode off. Otherwise, get zillion warnings because of DBG macros create code with no effect */
 #ifdef DEBUG_MODE
 #define DBG_MSG		printf("\n[%d]: %s): ", __LINE__, __FUNCTION__);printf
@@ -28,7 +28,6 @@
 #define DBG_DUMP(title)
 #endif
 
-#define CURRENT_PATH 		"/tmp/.myext2" 	/* File to store the current working directory, instead of PWD ENV*/
 #define BUF_SIZE 2048
 /*
 typing my_dir: program 
@@ -60,13 +59,14 @@ int main(int argc, char *argv[])
 	
 	strcpy(directoryName, argv[1]);
 	
-	if (!isValidPath(directoryName))
+	/* check if path valid without getting inner directory (NULL) */
+	if (!isValidPath(directoryName, NULL))
 	{
-		printf("[ERROR] directory doesn't exist\n");
+		printf("%s: File not found by ext2_lookup\n", directoryName);
 		exit(1);
 	}
 	
-	fd = open(CURRENT_PATH, O_RDWR | O_TRUNC) ;
+	fd = open(CURRENT_PATH_FILE, O_RDWR | O_TRUNC) ;
 	if (fd == -1)
 	{
 		if(errno == EACCES)
@@ -84,6 +84,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	int res = write(fd, directoryName, strlen(directoryName));
+	
 	if (res == -1)
 	{
 		printf("[ERROR] write directory to 'myext2' failed\n");

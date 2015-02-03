@@ -7,15 +7,15 @@
 #include <string.h>
 #include <stdint.h>
 #include <math.h>
+#include <time.h>
 #include <linux/fs.h>
-#include <linux/ext2_fs.h>
 #include <linux/types.h>
 #include "fcntl.h"
 #include "unistd.h"
 #include "errno.h"
+#include "my_utils.h"
 
-
-#define DEBUG_MODE 
+#define _DEBUG_MODE 
 /* Note - must compile with -Wno-unused-value if debug mode off. Otherwise, get zillion warnings because of DBG macros create code with no effect */
 #ifdef DEBUG_MODE
 #define DBG_MSG		printf("\n[%d]: %s): ", __LINE__, __FUNCTION__);printf
@@ -28,8 +28,6 @@
 #define DBG_EXIT
 #define DBG_DUMP(title)
 #endif
-
-
 
 
 #define BUF_SIZE 			2048			
@@ -72,6 +70,10 @@ static int getDirEntry( struct ext2_dir_entry_2 *pDirEntry, char* pEntryName, in
 
 /* given a directory path as string, split it on the '/'s and output an array of directory names */
 static int splitPath(char* path, char*** result);
+
+/* print one directory entry (a file or another directory) */
+int prettyPrintDirectoryEntry( struct ext2_dir_entry_2 dirEntry);
+static int printInode(int inodeNumber);
 
 /* Fixed per file system, can be 1024, 2048 or 4096. Default is 1024. */
 static int s_blockSize = BASE_BLOCK_SIZE;
@@ -201,22 +203,23 @@ int getInode(struct ext2_inode* inodePointer, int inodeNumber)
 	char inode[s_inodeSize];
 
 	DBG_ENTRY;
-	DBG_MSG("s_inodeSize=%d inodePointer 0x%x %d\n", s_inodeSize, (unsigned int)inodePointer, sizeof(struct ext2_inode));
+	
+	printf("get inode # %d\n", inodeNumber);
+	
 	if (!readInode(inodeNumber, inode))
 	{
 		printf("[ERROR] read inode %d failed\n", inodeNumber);
 		DBG_EXIT;
 		return 0;
 	}
-	DBG_MSG("s_inodeSize=%d inodePointer 0x%x %d\n", s_inodeSize, (unsigned int)inodePointer, sizeof(struct ext2_inode));
-     if( memcpy((void*)inodePointer, inode, sizeof(struct ext2_inode))== NULL)
-     {
-    	 printf("[ERROR] memcpy to inode struct failed\n");
-    	 DBG_EXIT;
-		 return 0;
-     }
-	 DBG_MSG("s_inodeSize=%d\n", s_inodeSize);
-     DBG_EXIT;
+	
+	if( memcpy((void*)inodePointer, inode, sizeof(struct ext2_inode))== NULL)
+	{
+		printf("[ERROR] memcpy to inode struct failed\n");
+		DBG_EXIT;
+		return 0;
+	}
+	 DBG_EXIT;
 	 return 1;
 }
 
@@ -236,8 +239,8 @@ int getDirEntry( struct ext2_dir_entry_2 *pDirEntry, char* pEntryName, int inode
 		return 0;
 
 	}
-    DBG_MSG("modification time %d", inode.i_mtime);
-	
+		i=0;
+	DBG_MSG("block num %d\n", inode.i_block[i]);
 	for ( i = 0; i < 12 && (inode.i_block[i]!=0); i++ )
 	{
 		dataBlockLength = readBlock(inode.i_block[i], directoryDataArray); /*first data block*/
@@ -265,7 +268,58 @@ int getDirEntry( struct ext2_dir_entry_2 *pDirEntry, char* pEntryName, int inode
     DBG_EXIT;
 	return 0; /*the entry wasn't found*/
 }
+int printInode(int inodeNumber)
+{
+	struct	ext2_inode 			inode;
+    int 						i, j, dataBlockLength = 0;
+	char 						directoryDataArray[s_blockSize];
+	struct ext2_dir_entry_2 	dirEntry;
 
+	DBG_ENTRY;
+	
+	DBG_MSG("inodeNumber=%d inodePointer 0x%x %d\n", inodeNumber, (unsigned int)&inode, sizeof(struct ext2_inode));
+	if(!getInode(&inode, inodeNumber))
+	{
+		printf("[ERROR] getInode failed\n");
+		DBG_EXIT;
+		return 0;
+
+	}
+    
+	i=0;
+	DBG_MSG("block num %d\n", inode.i_block[i]);
+	for ( i = 0; i < 12 && (inode.i_block[i]!=0); i++ )
+	{
+		
+		printf("block num %d\n", inode.i_block[i]);
+		dataBlockLength = readBlock(inode.i_block[i], directoryDataArray); /*first data block*/
+		if(!dataBlockLength)
+		{
+			printf("[ERROR] getInode failed\n");
+			DBG_EXIT;
+			return 0;
+		}
+		
+		DBG_MSG("dataBlockLength=%d\n",dataBlockLength);
+		
+		j = 0;
+		while( j < dataBlockLength )
+		{
+			if( memcpy( &dirEntry, directoryDataArray + j, sizeof( struct ext2_dir_entry_2))!= NULL)
+			{
+				printf("dir entry name %s\n", dirEntry.name);
+				if (!prettyPrintDirectoryEntry(dirEntry))
+				{
+					DBG_EXIT;
+					return 0;
+				}
+				j += dirEntry.rec_len;
+			}
+		}
+	}
+    DBG_EXIT;
+	return 1; 
+}
 int splitPath(char* path, char*** result)
 {
 	char**		ppSubDirectories;
@@ -292,7 +346,7 @@ int splitPath(char* path, char*** result)
 	return 1;
 }
 
-int isValidPath(char path[])
+int isValidPath(char path[], struct ext2_dir_entry_2 *pInnerDirectory)
 {
 	struct ext2_dir_entry_2		currentDirectoryEntry;
 	char**						ppSubDirectories;
@@ -301,7 +355,6 @@ int isValidPath(char path[])
 	struct	ext2_super_block	superBlock;
 	
 	DBG_ENTRY;
-	
 	strcpy(tmpPath , path);
 	
 	if(!splitPath(tmpPath, &ppSubDirectories))
@@ -322,7 +375,6 @@ int isValidPath(char path[])
 	
 	for(i=0; ppSubDirectories[i] != NULL; i++)
 	{
-		DBG_MSG("");
 		if (!getDirEntry(&currentDirectoryEntry, ppSubDirectories[i], inodeNumber)  )
 		{
 			DBG_EXIT;
@@ -331,6 +383,17 @@ int isValidPath(char path[])
 		inodeNumber = currentDirectoryEntry.inode - 1;
 	}
 	
+	/* return inner directory if requested */
+	if (pInnerDirectory)
+	{
+		if( memcpy( pInnerDirectory, &currentDirectoryEntry, sizeof( struct ext2_dir_entry_2 ) ) == NULL)
+		{
+			printf("[ERROR] memcpy failed\n");
+			DBG_EXIT;
+			return 0;
+		}
+	}
+		
 	DBG_EXIT;
 	return 1;
 }
@@ -358,4 +421,47 @@ int getSuperblock(struct ext2_super_block	*pSuperBlock)
 	
 	return 1;
 
+}
+
+/* Print contents of a directory to stdout. Path must begin with '/' example: /aa/bb/cc .*/
+int printDirectory(char path[])
+{
+	struct	ext2_inode			inode;
+	struct	ext2_dir_entry_2	innerDirectory;
+	
+	DBG_ENTRY;
+	printf("\n");
+	isValidPath(path, &innerDirectory);	
+	printf("innerDirectory name %s inode number=%d\n", innerDirectory.name, innerDirectory.inode);
+	
+	if(!printInode(innerDirectory.inode))
+	{
+		DBG_EXIT;
+		return 0;
+	}
+		
+	DBG_EXIT;
+	return 1;
+}
+
+int prettyPrintDirectoryEntry( struct ext2_dir_entry_2 dirEntry)
+{
+	struct tm  				*pTimeInfo;
+    char       				timeString[80];
+	struct ext2_inode 		inode;
+	
+	DBG_ENTRY;
+	if(!getInode(&inode, dirEntry.inode))
+	{
+		DBG_EXIT;
+		return 0;
+	}
+	
+	
+	pTimeInfo = localtime((time_t *) &inode.i_mtime);
+    strftime(timeString, sizeof(timeString), "%d-%b-%Y %H:%M", pTimeInfo);
+    printf("%s %s\n", timeString, dirEntry.name);
+	
+	DBG_EXIT;
+	return 1;
 }

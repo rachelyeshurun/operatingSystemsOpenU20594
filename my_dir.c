@@ -14,7 +14,7 @@
  
 #include "my_utils.h"
 
-#define DEBUG_MODE 
+#define _DEBUG_MODE 
 /* Note - must compile with -Wno-unused-value if debug mode off. Otherwise, get zillion warnings because of DBG macros create code with no effect */
 #ifdef DEBUG_MODE
 #define DBG_MSG		printf("\n[%d]: %s): ", __LINE__, __FUNCTION__);printf
@@ -28,7 +28,7 @@
 #define DBG_DUMP(title)
 #endif
 
-#define CURRENT_PATH_FILE 		"/tmp/.myext2" 	/* File to store the current working directory, instead of PWD ENV*/
+
 #define BUF_SIZE 2048
 /*
 typing my_dir: program 
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	
-	fileDesc = open(CURRENT_PATH_FILE, O_RDWR | O_TRUNC) ;	
+	fileDesc = open(CURRENT_PATH_FILE, O_RDONLY) ;	
 	if (fileDesc == -1)
 	{
 		if(errno == EACCES)
@@ -86,11 +86,9 @@ int main(int argc, char *argv[])
 	}
 	
 	close(fileDesc);
-	/* problem here: readLen is zero!! */
-	DBG_MSG("directoryName len=%d", readLen);
-	
+
 	directoryName[readLen]= '\0';
-	DBG_MSG("directoryName %s", directoryName);
+
 	/* Print contents of a directory to stdout. Path must begin with '/' example: /aa/bb/cc .*/
 	if (!printDirectory(directoryName))
 	{

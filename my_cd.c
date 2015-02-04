@@ -73,13 +73,15 @@ int main(int argc, char *argv[])
 		{
 			printf("[ERROR] open 'myext2' failed, permission denied\n");
 		}
-		else if(errno == ENONET)
-		{
-			printf("[ERROR] open 'myext2' failed, the file does not exist\n");
-		}
 		else
 		{
-			printf("[ERROR] open 'myext2' failed\n");
+			/* last resort ..try to create it.. */
+			fd = open(CURRENT_PATH_FILE, O_CREAT| O_RDWR | O_TRUNC, 0664);
+			if (fd == -1)
+			{
+				printf("[ERROR] open 'myext2' failed\n");
+				exit(1);
+			}
 		}
 		exit(1);
 	}

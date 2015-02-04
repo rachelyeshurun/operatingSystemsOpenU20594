@@ -44,9 +44,7 @@ print contents of directory (date, time name)
 if /tmp/.myext2 does not exist, create it and print the contents (of this directory which is the root)
 return 0 on success
 return 1 on any file system error or if the given directory to print out is not found
- 
 
-/*
 typing my_cd <full_path_to_directory>
 check if the directory exists on disk
 If not, return with 1
@@ -167,15 +165,15 @@ int readInode(int inodeNumber, char *buffer)
 		DBG_EXIT;
 		return 0;
 	}
-		
+	DBG_MSG("readInode #%d", inodeNumber);	
 	/* calculate start of inode block:
 	 * inode table (first inode block number) multiplied by size of blocks plus
 	 * inode number multiplied by size of inode blocks
 	 */
-	seekTo = (groupDescriptor.bg_inode_table * s_blockSize) + (inodeNumber * s_inodeSize);	
-	DBG_MSG("seekTo=%d\n", seekTo);	
+	seekTo = (groupDescriptor.bg_inode_table * s_blockSize) + ((inodeNumber-1) * s_inodeSize);	
+	
 	seekResult = lseek(file,  seekTo, SEEK_SET);
-	DBG_MSG("seekResult=%d\n", seekResult);	
+	
 	if (seekResult != seekTo)
 	{
 		printf("[ERROR] lseek failed\n");
@@ -204,7 +202,7 @@ int getInode(struct ext2_inode* inodePointer, int inodeNumber)
 
 	DBG_ENTRY;
 	
-	printf("get inode # %d\n", inodeNumber);
+	DBG_MSG("get inode # %d\n", inodeNumber);
 	
 	if (!readInode(inodeNumber, inode))
 	{
@@ -291,7 +289,7 @@ int printInode(int inodeNumber)
 	for ( i = 0; i < 12 && (inode.i_block[i]!=0); i++ )
 	{
 		
-		printf("block num %d\n", inode.i_block[i]);
+		DBG_MSG("block num %d\n", inode.i_block[i]);
 		dataBlockLength = readBlock(inode.i_block[i], directoryDataArray); /*first data block*/
 		if(!dataBlockLength)
 		{
@@ -307,7 +305,7 @@ int printInode(int inodeNumber)
 		{
 			if( memcpy( &dirEntry, directoryDataArray + j, sizeof( struct ext2_dir_entry_2))!= NULL)
 			{
-				printf("dir entry name %s\n", dirEntry.name);
+				DBG_MSG("dir entry name %s\n", dirEntry.name);
 				if (!prettyPrintDirectoryEntry(dirEntry))
 				{
 					DBG_EXIT;
@@ -351,7 +349,7 @@ int isValidPath(char path[], struct ext2_dir_entry_2 *pInnerDirectory)
 	struct ext2_dir_entry_2		currentDirectoryEntry;
 	char**						ppSubDirectories;
 	char						tmpPath[BUF_SIZE];
-	int							i, inodeNumber = 1;
+	int							i, inodeNumber = 2;
 	struct	ext2_super_block	superBlock;
 	
 	DBG_ENTRY;
@@ -372,7 +370,7 @@ int isValidPath(char path[], struct ext2_dir_entry_2 *pInnerDirectory)
 	}
 	
 	setBlockAndInodeSize(superBlock);
-	
+	DBG_MSG("Next inodeNumber %d",inodeNumber);
 	for(i=0; ppSubDirectories[i] != NULL; i++)
 	{
 		if (!getDirEntry(&currentDirectoryEntry, ppSubDirectories[i], inodeNumber)  )
@@ -380,7 +378,9 @@ int isValidPath(char path[], struct ext2_dir_entry_2 *pInnerDirectory)
 			DBG_EXIT;
 			return 0;
 		}
-		inodeNumber = currentDirectoryEntry.inode - 1;
+		DBG_MSG("currentDirectoryEntry.name %s currentDirectoryEntry.inode %d\n", currentDirectoryEntry.name, currentDirectoryEntry.inode);
+		inodeNumber = currentDirectoryEntry.inode;
+		DBG_MSG("Next inodeNumber %d",inodeNumber);
 	}
 	
 	/* return inner directory if requested */
@@ -428,13 +428,21 @@ int printDirectory(char path[])
 {
 	struct	ext2_inode			inode;
 	struct	ext2_dir_entry_2	innerDirectory;
+	int							inodeNum;
 	
 	DBG_ENTRY;
-	printf("\n");
-	isValidPath(path, &innerDirectory);	
-	printf("innerDirectory name %s inode number=%d\n", innerDirectory.name, innerDirectory.inode);
 	
-	if(!printInode(innerDirectory.inode))
+	isValidPath(path, &innerDirectory);	
+
+	inodeNum = innerDirectory.inode;
+	
+	if (!inodeNum )
+	{
+		/* inode num is weird - give the root directory (inode 1) TODO - why does it work with 2 and not 1? */
+		inodeNum = 2;
+	}
+
+	if(!printInode(inodeNum))
 	{
 		DBG_EXIT;
 		return 0;
@@ -447,7 +455,8 @@ int printDirectory(char path[])
 int prettyPrintDirectoryEntry( struct ext2_dir_entry_2 dirEntry)
 {
 	struct tm  				*pTimeInfo;
-    char       				timeString[80];
+    char       				timeString[BUF_SIZE];
+	char       				nameString[BUF_SIZE];
 	struct ext2_inode 		inode;
 	
 	DBG_ENTRY;
@@ -457,10 +466,13 @@ int prettyPrintDirectoryEntry( struct ext2_dir_entry_2 dirEntry)
 		return 0;
 	}
 	
-	
+	/* print the time like this: 18-Feb-1970 09:29         */
 	pTimeInfo = localtime((time_t *) &inode.i_mtime);
-    strftime(timeString, sizeof(timeString), "%d-%b-%Y %H:%M", pTimeInfo);
-    printf("%s %s\n", timeString, dirEntry.name);
+    strftime(timeString, sizeof(timeString), "%b-%Y %H:%M", pTimeInfo);
+	
+	strncpy(nameString, dirEntry.name, dirEntry.name_len);
+	nameString[dirEntry.name_len] = '\0';
+    printf(" %2d-%s %s\n", pTimeInfo->tm_mday,timeString, nameString);
 	
 	DBG_EXIT;
 	return 1;

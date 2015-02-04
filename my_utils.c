@@ -467,7 +467,7 @@ int prettyPrintDirectoryEntry( struct ext2_dir_entry_2 dirEntry)
 	}
 	
 	/* print the time like this: 18-Feb-1970 09:29         */
-	pTimeInfo = localtime((time_t *) &inode.i_mtime);
+	pTimeInfo = localtime((time_t *) &inode.i_ctime);
     strftime(timeString, sizeof(timeString), "%b-%Y %H:%M", pTimeInfo);
 	
 	strncpy(nameString, dirEntry.name, dirEntry.name_len);

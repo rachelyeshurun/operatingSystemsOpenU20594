@@ -59,22 +59,24 @@ int main(int argc, char *argv[])
 			printf("[ERROR] open 'myext2' failed, permission denied\n");
 			exit(1);
 		}
-		else if(errno == ENONET)
+		else
 		{
-			printf("[ERROR] open 'myext2' failed, the file does not exist. Create it.\n");
+			/*open 'myext2' failed/the file does not exist. Create it.*/
 			fileDesc = open(CURRENT_PATH_FILE, O_CREAT| O_RDWR | O_TRUNC, 0664);
 			if (fileDesc == -1)
 			{
 				printf("[ERROR] open 'myext2' failed and the file cannot be created.\n");
 				exit(1);
 			}
+			readLen = write(fileDesc, "/.", strlen("/."));
+			if (readLen == -1)
+			{
+				printf("[ERROR] write root to 'myext2' failed\n");
+				close(fileDesc);
+				exit(1);
+			}
+
 		}
-		else
-		{
-			printf("[ERROR] open 'myext2' failed\n");
-			exit(1);
-		}
-		
 	}
 	
 	readLen = read(fileDesc, directoryName, BUF_SIZE);

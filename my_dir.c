@@ -2,7 +2,7 @@
 * Operating Systems 20594 - Maman 13
 * Rachel Cohen Yeshurun
 *
-* This belongs to Github
+* This belongs to the Local Repository
 */
 #include <stdio.h>
 #include <stdlib.h>
